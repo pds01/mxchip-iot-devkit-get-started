@@ -8,6 +8,7 @@
 #include "config.h"
 #include "utility.h"
 #include "SystemTickCounter.h"
+#include "SystemTime.h"
 
 static bool hasWifi = false;
 int messageCount = 1;
@@ -17,7 +18,8 @@ static uint64_t send_interval_ms;
 
 static float temperature;
 static float humidity;
-
+static float preasure;
+static float soil;
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Utilities
 static void InitWifi()
@@ -52,9 +54,11 @@ static void SendConfirmationCallback(IOTHUB_CLIENT_CONFIRMATION_RESULT result)
   Screen.print(2, line1);
 
   char line2[20];
-  sprintf(line2, "T:%.2f H:%.2f", temperature, humidity);
+  //sprintf(line2, "T:%.2f H:%.2f", temperature, humidity);
+  sprintf(line2, "S:%.2f",  soil);
   Screen.print(3, line2);
-  messageCount++;
+
+
 }
 
 static void MessageCallback(const char* payLoad, int size)
@@ -152,7 +156,7 @@ void loop()
       // Send teperature data
       char messagePayload[MESSAGE_MAX_LEN];
 
-      bool temperatureAlert = readMessage(messageCount, messagePayload, &temperature, &humidity);
+      bool temperatureAlert = readMessage(messageCount, messagePayload, &temperature, &humidity, &preasure, &soil);
       EVENT_INSTANCE* message = DevKitMQTTClient_Event_Generate(messagePayload, MESSAGE);
       DevKitMQTTClient_Event_AddProp(message, "temperatureAlert", temperatureAlert ? "true" : "false");
       DevKitMQTTClient_SendEventInstance(message);

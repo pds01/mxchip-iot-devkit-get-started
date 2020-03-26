@@ -7,15 +7,21 @@
 #include "parson.h"
 #include "config.h"
 #include "RGB_LED.h"
+#include "Sensor.h"
+#include "SystemTime.h"
 
 #define RGB_LED_BRIGHTNESS 32
 
 DevI2C *i2c;
 HTS221Sensor *sensor;
+LPS22HBSensor *lp_sensor;
+
 static RGB_LED rgbLed;
 static int interval = INTERVAL;
 static float humidity;
 static float temperature;
+static float preasure;
+static float soil;
 
 int getInterval()
 {
@@ -79,8 +85,11 @@ void SensorInit()
     i2c = new DevI2C(D14, D15);
     sensor = new HTS221Sensor(*i2c);
     sensor->init(NULL);
-
+    lp_sensor= new LPS22HBSensor(*i2c);
+    lp_sensor->init(NULL);
+    preasure = -1;
     humidity = -1;
+    soil = -1;
     temperature = -1000;
 }
 
@@ -94,6 +103,16 @@ float readTemperature()
     return temperature;
 }
 
+float readPreasure()
+{
+    //lp_sensor->reset();
+
+    float preasure = 0;
+    lp_sensor->getTemperature(&preasure);
+
+    return preasure;
+}
+
 float readHumidity()
 {
     sensor->reset();
@@ -104,7 +123,18 @@ float readHumidity()
     return humidity;
 }
 
-bool readMessage(int messageId, char *payload, float *temperatureValue, float *humidityValue)
+float readSoil()
+{
+    int sensorPin = 5;
+
+    float soil = 0;
+    
+    soil = analogRead(sensorPin);
+
+    return soil;
+}
+
+bool readMessage(int messageId, char *payload, float *temperatureValue, float *humidityValue, float *preasureValue, float *soilValue)
 {
     JSON_Value *root_value = json_value_init_object();
     JSON_Object *root_object = json_value_get_object(root_value);
@@ -114,6 +144,8 @@ bool readMessage(int messageId, char *payload, float *temperatureValue, float *h
 
     float t = readTemperature();
     float h = readHumidity();
+    float p = readPreasure();
+    float s = readSoil();
     bool temperatureAlert = false;
     if(t != temperature)
     {
@@ -132,6 +164,29 @@ bool readMessage(int messageId, char *payload, float *temperatureValue, float *h
         *humidityValue = h;
         json_object_set_number(root_object, "humidity", humidity);
     }
+
+    if(s != soil)
+    {
+        soil = s;
+        *soilValue = s;
+        json_object_set_number(root_object, "soil", soil);
+    }
+
+    if(p != preasure)
+    {
+        preasure = p;
+        *preasureValue = p;
+        json_object_set_number(root_object, "preasure", preasure);
+    }
+
+    time_t st = time(NULL);
+    char buf[sizeof "2011-10-08T07:07:09Z"];
+    strftime(buf, sizeof buf, "%FT%TZ", gmtime(&st));
+
+
+    json_object_set_string(root_object, "deviceId", DEVICE_ID);
+    json_object_set_string(root_object, "messageId", buf);
+     
     serialized_string = json_serialize_to_string_pretty(root_value);
 
     snprintf(payload, MESSAGE_MAX_LEN, "%s", serialized_string);
